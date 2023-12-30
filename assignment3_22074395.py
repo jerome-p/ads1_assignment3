@@ -69,6 +69,49 @@ def subset_data(data,
     
     return data, temp, result_df
 
+def kmeans_cluster(ncluster, normalised_df, indicator1,indicator2):
+    
+    plt.figure()
+    
+    kmeans = cluster.KMeans(n_clusters=ncluster, n_init=20)
+    
+    kmeans.fit(normalised_df)
+    
+    labels = kmeans.labels_
+        
+    cen = kmeans.cluster_centers_
+    
+    xkmeans = cen[:,0]
+    ykmeans = cen[:,1]
+        
+    cm = plt.colormaps["Paired"]
+    
+    plt.scatter(normalised_df[indicator1],
+                normalised_df[indicator2], marker="o", c=labels,
+                cmap=cm)
+    plt.scatter(xkmeans, ykmeans, marker="d", label="kmeans centres", c='black' )
+    
+    plt.legend()
+    
+    return cen, labels, cm
+
+
+def sil_score(normalised_df):
+    
+    for n in range(2,8):    
+
+        ncluster = n
+        
+        kmeans = cluster.KMeans(n_clusters=ncluster, n_init=20)
+        
+        kmeans.fit(normalised_df)
+        
+        labels = kmeans.labels_
+                
+        print("Nclusters: "+str(n))
+        print(skmet.silhouette_score(normalised_df, labels))
+
+
 def main():
     
     # Create a list of Countries interested in evaluating.
@@ -76,27 +119,62 @@ def main():
                  'United Kingdom', 'United States', 'Germany']
     
     wb_data_years, wb_data_country = load_data(
-        'agriculture_rural_dev.csv',
+        'climate_change.csv',
         countries)
 
     subset_df,temp2, result = subset_data(wb_data_years,
-                'Rural population (% of total population)',
-                'Surface area (sq. km)',
-                'Cereal production (metric tons)',
-                'Land area (sq. km)',
+                'CO2 emissions from solid fuel consumption (% of total)',
+                'Agriculture, forestry, and fishing, value added (% of GDP)',
+                'Urban population (% of total population)',
+                'Cereal yield (kg per hectare)',
                 countries)  
     
+    # This produces a heatmap using cluster_tools py file.
+    # The generated plot had to be saved maunally from spyder IDE.
     clst.map_corr(result)
+    
+    # Choosing indicators based on the heatmap
+    indicator_1 = 'Urban population (% of total population)'
+    indicator_2 = 'Cereal yield (kg per hectare)'
+    
+    cluster_df = result[[indicator_1, indicator_2]]
+        
+    scaler_output = clst.scaler(cluster_df)
+    
+    print(scaler_output[0])
+    
+    normalised_df = scaler_output[0]
+    
+    min_values = scaler_output[1]
+    max_values = scaler_output[2]
+   
+    sil_score(normalised_df)
+    
+    cen, labels, cm = kmeans_cluster(6, normalised_df,
+                   indicator_1,
+                   indicator_2)
+
+    backscaled_centers = clst.backscale(cen, min_values, max_values)
+    x = backscaled_centers[:,0]
+    y = backscaled_centers[:,1]
+    
+    plt.figure()
+    plt.scatter(result[indicator_1], result[indicator_2],
+                c=labels,cmap=cm )
+    plt.scatter(x, y, marker="d", label="original centres", c='black' )
+    
+    plt.legend()
+              
+    
+    
 
     
-    temp_df = subset_df.copy()
-    temp_df = temp_df.set_index('Indicator Name')
-    
-    temp_df = temp_df.T
+
+
         
-    return wb_data_years, wb_data_country, subset_df, temp_df, temp2, result
+    return wb_data_years, wb_data_country, subset_df, temp2, result
 
 
 
 if __name__ == '__main__':
-    years, countries, susbset,temp, fortemp, result = main()
+    years, countries, susbset, fortemp, result = main()
