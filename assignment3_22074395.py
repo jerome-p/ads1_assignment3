@@ -3,7 +3,8 @@ import pandas as pd
 import sklearn.cluster as cluster
 import matplotlib.pyplot as plt
 import sklearn.metrics as skmet
-
+import numpy as np
+import scipy.optimize as opt
 
 def load_data(dataset, country_list):
     """
@@ -110,6 +111,67 @@ def sil_score(normalised_df):
                 
         print("Nclusters: "+str(n))
         print(skmet.silhouette_score(normalised_df, labels))
+        
+        
+def exp_growth(t, scale, growth):
+    """ Computes exponential function with scale and growth as free parameters
+    """
+    
+    f = scale * np.exp(growth * (t)) 
+    
+    return f
+
+def funct(t,s,k):
+    
+    x = s * (np.exp(k*t))
+    
+    return x
+
+
+def generate_line_plot(data, country, indicator, xlabel, ylabel, title):
+    """
+    This function generates line plots for the given dataframe for a particular
+    indicator in the world bank dataset. It also requires a list of country
+    names.
+    Parameters
+    ----------
+    data : TYPE
+    countries : TYPE
+    indicator : TYPE
+    xlabel : TYPE
+    ylabel : TYPE
+    title : TYPE
+
+    Returns None.
+
+    """
+    # Specifying figure size, as plot is big
+    #plt.figure(figsize=(15, 8))
+
+    temp_df = data[country].T
+    # Subsetting the transposed df. Which now has years as columns
+    subset_df = temp_df[temp_df['Indicator Name'] == indicator]
+    # Transposing the df again to makes years the index.
+    subset_df = subset_df.T
+
+    # Plotting using the subset df.
+    # in the same figure.
+    plt.plot(subset_df[1:], label=country)
+
+    # Labelling
+    plt.xticks(rotation=90)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
+
+    # Saving the figure.
+    #plt.savefig('figures/line_graph_'+indicator+'.png',
+    #            bbox_inches='tight',
+    #            dpi=200)
+    plt.show()
+
+    return subset_df
 
 
 def main():
@@ -164,17 +226,46 @@ def main():
     plt.scatter(x, y, marker="d", label="original centres", c='black' )
     
     plt.legend()
-              
-    
     
 
+    indicator_df = generate_line_plot(wb_data_country ,
+                       'India',
+                       'Urban population (% of total population)',
+                       'Years','urbanpop','Trialdank')
+    indicator_df = indicator_df.reset_index()
+    indicator_df = indicator_df.drop(index=0)
     
+    indicator_df = indicator_df.rename(
+        columns={'index': 'Year', 
+                 'India': 'Urban population (% of total population)'})
+    
+    xdata = indicator_df['Year'].astype(int)
+    ydata = indicator_df['Urban population (% of total population)'].astype(float)
+    
+    param, pcovar = opt.curve_fit(exp_growth, xdata, ydata, p0=(0,0))
+    
+    print(param, pcovar)
+    
+    indicator_df['pop_exp'] = exp_growth(xdata, *param)
 
+    plt.figure()
+    plt.plot(indicator_df['Year'],
+             indicator_df['Urban population (% of total population)'], 
+             label='Data')
+    
+    plt.plot(indicator_df['Year'], 
+             indicator_df['pop_exp'], 
+             label='fit')
+    plt.xticks(rotation=90)
+
+    plt.legend()
+    plt.title('Trial 1')
+    plt.show()
 
         
-    return wb_data_years, wb_data_country, subset_df, temp2, result
+    return wb_data_years, wb_data_country, subset_df, temp2, result, indicator_df
 
 
 
 if __name__ == '__main__':
-    years, countries, susbset, fortemp, result = main()
+    years, countries, susbset, fortemp, result, indicatordf = main()
