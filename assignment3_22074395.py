@@ -250,23 +250,30 @@ def main():
     wb_data_years, wb_data_country = load_data(
         'climate_change.csv',
         countries)
+    
+    #group = wb_data_years.iloc[:,:2]
+    
+    #group_1 = pd.concat([group, wb_data_years.iloc[:,3:33]], axis=1)
+    #group_2 = pd.concat([group, wb_data_years.iloc[:,34:]], axis=1)
+
 
     result = subset_data(wb_data_years,
                 'CO2 emissions from solid fuel consumption (% of total)',
-                'Agriculture, forestry, and fishing, value added (% of GDP)',
+                'CO2 emissions (kt)',
                 'Urban population (% of total population)',
-                'Cereal yield (kg per hectare)',
+                'Electric power consumption (kWh per capita)',
                 countries)  
     
     result = result.dropna(axis=0)
+    
     
     # This produces a heatmap using cluster_tools py file.
     # The generated plot had to be saved maunally from spyder IDE.
     clst.map_corr(result)
     
     # Choosing indicators based on the heatmap
-    indicator_2 = 'CO2 emissions from solid fuel consumption (% of total)'
     indicator_1 = 'Urban population (% of total population)'
+    indicator_2 = 'CO2 emissions from solid fuel consumption (% of total)'
     
     cluster_df = result[[indicator_1, indicator_2]]
     #cluster_df = cluster_df.dropna(axis=0)
@@ -281,11 +288,27 @@ def main():
     max_values = scaler_output[2]
    
     sil_score(normalised_df)
+    print(normalised_df)
     n_cluster = 2
     labeled_df = generate_kmeans_cluster_plot(result,normalised_df,cluster_df,
                                               indicator_1, indicator_2, 
                                  n_cluster, min_values, max_values)
     
+    # Choosing indicators based on the heatmap
+    indicator_1 = 'Electric power consumption (kWh per capita)'
+    indicator_2 = 'Urban population (% of total population)'
+    
+    cluster_df = result[[indicator_1, indicator_2]]
+    scaler_output = clst.scaler(cluster_df)
+    normalised_df = scaler_output[0]
+    min_values = scaler_output[1]
+    max_values = scaler_output[2]
+    print(normalised_df)
+    sil_score(normalised_df)
+    n_cluster = 3
+    labeled_df = generate_kmeans_cluster_plot(result,normalised_df,cluster_df,
+                                              indicator_1, indicator_2, 
+                                 n_cluster, min_values, max_values)
     
     #print(result[result['label'] == 1]['Country'].unique())
 
@@ -294,9 +317,9 @@ def main():
                        'Urban population (% of total population)',
                        'Years','urbanpop','Trialdank')
         
-    return wb_data_years, wb_data_country, result, labeled_df
+    return wb_data_years, wb_data_country, result, labeled_df, scaler_output
 
 
 
 if __name__ == '__main__':
-    years, countries, result, labeled = main()
+    years, countries, result, labeled, scaler = main()
