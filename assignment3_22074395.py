@@ -72,7 +72,7 @@ def subset_data(data,
     return result_df
 
 
-def sil_score(normalised_df):
+def sil_score(normalised_df, indicator):
     """
     This function generates the silhouette score for the given dataframe. It 
     uses the sklearn metrics module to generate the score. Using which we 
@@ -83,21 +83,40 @@ def sil_score(normalised_df):
     Returns None
     
     """
-    
-    for n in range(2,8):    
-
-        ncluster = n
-        
-        kmeans = cluster.KMeans(n_clusters=ncluster, n_init=20)
-        
+    #Empty list to store obtained scores
+    score =[]
+    for n in range(2,8):
+        #passing multiple values of n using for loop to kmeans
+        kmeans = cluster.KMeans(n_clusters=n, n_init=20)
+        #Fitting the normalised_df to the kmeans model with multiple 
+        #values of n to find the optimal number of clusters.
         kmeans.fit(normalised_df)
-        
         labels = kmeans.labels_
-                
-        print("Nclusters: "+str(n))
-        print(skmet.silhouette_score(normalised_df, labels))
+        #Storing the obtained silhouette scores into a list
+        score.append(skmet.silhouette_score(normalised_df, labels))
         
-        return
+    # Converting list to numpy array to use argmax()
+    # Using which, the returned index will be used to get the cluster number 
+    # from variable x. Since both score and x have same length.
+    s = np.array(score)
+    
+    #Creating variable for x-axis of the plot
+    x = range(2,8)
+    
+    #Plotting the different scores
+    plt.figure()
+    plt.plot(x, score, label="Best score: "+str(max(score)))
+    
+    #Labelling
+    plt.xlabel('no.of clusters')
+    plt.ylabel('score')
+    plt.title("Silhouette Score")
+    plt.legend()
+    plt.savefig("Silhouette_score_"+indicator+".png", dpi=300)
+    plt.show()
+    
+    #Returning the best number of clusters
+    return x[s.argmax()]
         
 def generate_kmeans_cluster_plot(result,normalised_df, indicator_1, 
                                  indicator_2, ncluster,
@@ -118,7 +137,7 @@ def generate_kmeans_cluster_plot(result,normalised_df, indicator_1,
     Returns: None
     
     """
-    
+    cluster.KMeans.OMP_NUM_THREADS=1
     #performing kmeans clustering with the number of clusters provided.
     kmeans = cluster.KMeans(n_clusters=ncluster, n_init=20)
     
@@ -149,6 +168,7 @@ def generate_kmeans_cluster_plot(result,normalised_df, indicator_1,
     plt.xlabel(indicator_1)
     plt.ylabel(ylabel)
     plt.legend()
+    plt.savefig("kmeans_cluster_"+ylabel+".png",dpi=300)
     plt.show()
 
     #New figure, to generate clusters using the real values
@@ -193,9 +213,11 @@ def generate_kmeans_cluster_plot(result,normalised_df, indicator_1,
     plt.scatter(x, y, marker="d", label="original centres", c='black' )
     
     #Labelling
+    plt.title('Clusters for '+ylabel)
     plt.xlabel(indicator_1)
     plt.ylabel(ylabel)    
     plt.legend()
+    plt.savefig("cluster_"+ylabel+".png", dpi=300)
     plt.show()    
     
     return 
@@ -270,7 +292,8 @@ def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend()
-    plt.title('Trial 1')
+    plt.title(title)
+    plt.savefig("curve_fit_"+ylabel+".png", dpi=300)
     plt.show()
     
     # Visualising Error for the fitted data, using the errors py file
@@ -282,12 +305,16 @@ def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
     #Plotting data with errors ranges
     plt.figure()
     plt.title("exponenetial function error")
-    plt.plot(xdata, ydata, label="data")
+    plt.plot(xdata, ydata, label="Data")
     plt.plot(xdata, subset_df['pop_exp'], label="fit")
     # plot error ranges with transparency
     plt.fill_between(xdata, low, up, alpha=0.2, color="green")
     #Labelling
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.legend(loc="upper left")
+    plt.savefig("curve_fit_error"+ylabel+".png", dpi=300)
+
     plt.show()
 
     return 
@@ -318,6 +345,8 @@ def main():
     # The generated plot had to be saved maunally from spyder IDE.
     clst.map_corr(result)
     
+    
+    #-----------------------------Cluster 1----------------------------------
     # Choosing indicators based on the heatmap
     indicator_1 = 'Urban population (% of total population)'
     indicator_2 = 'CO2 emissions from solid fuel consumption (% of total)'
@@ -325,24 +354,24 @@ def main():
     cluster_df = result[[indicator_1, indicator_2]]    
     scaler_output = clst.scaler(cluster_df)
     
-    print(scaler_output[0])
-    
     normalised_df = scaler_output[0]
     #Extracting min and max values from scaler ouput. 
     min_values = scaler_output[1]
     max_values = scaler_output[2]
     #Calculating siloheute score and choosing no.of clusters
-    sil_score(normalised_df)
-    n_cluster = 2
+    n_cluster = sil_score(normalised_df, 
+                          indicator_2)
     #Generating kmeans clusters
     generate_kmeans_cluster_plot(result,normalised_df,
-                                 indicator_1, indicator_2, 
-                                 n_cluster, min_values, max_values,
-                                 "CO2 % of total, from solid fuel consumption")
+                                indicator_1, indicator_2, 
+                                n_cluster, min_values, max_values,
+                                "CO2 % of total, from solid fuel consumption")
     
+    
+    #-----------------------------Cluster 2----------------------------------
     # Choosing indicators based on the heatmap
-    indicator_1 = 'Electric power consumption (kWh per capita)'
-    indicator_2 = 'Urban population (% of total population)'
+    indicator_1 = 'Urban population (% of total population)'
+    indicator_2 = 'Electric power consumption (kWh per capita)'
     
     cluster_df = result[[indicator_1, indicator_2]]
     #Using the cluster tool py file to normalise and get min and max values
@@ -351,24 +380,27 @@ def main():
     min_values = scaler_output[1]
     max_values = scaler_output[2]
     
-    #Cluster plot 2
     #Calculating siloheute score and choosing no.of clusters
-    sil_score(normalised_df)
-    n_cluster = 3
-    labeled_df = generate_kmeans_cluster_plot(result,normalised_df,
+    n_cluster = sil_score(normalised_df, indicator_2)
+    
+    #generating kmeans cluster plot
+    generate_kmeans_cluster_plot(result,normalised_df,
                                               indicator_1, indicator_2, 
                                  n_cluster, min_values, max_values,
                                  indicator_2)
+
     
+    #---------------------------Curve Fitting--------------------------------
+
     #Fitting a exponential function for India's Urban population %
     curve_fit_plot(wb_data_country,
                        'India',
                        'Urban population (% of total population)',
-                       'Years','urbanpop','Trialdank')
+                       'Years','Urban population (%)', 'Trial')
+    
         
-    return wb_data_years, wb_data_country, result, labeled_df, scaler_output
-
+    return 
 
 
 if __name__ == '__main__':
-    years, countries, result, labeled, scaler = main()
+    main()
