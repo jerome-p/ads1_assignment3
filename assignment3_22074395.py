@@ -6,6 +6,9 @@ import sklearn.metrics as skmet
 import numpy as np
 import scipy.optimize as opt
 import errors as err
+import matplotlib
+
+print(help(err))
 
 def load_data(dataset, country_list):
     """
@@ -105,14 +108,14 @@ def sil_score(normalised_df, indicator):
     
     #Plotting the different scores
     plt.figure()
-    plt.plot(x, score, label="Best score: "+str(max(score)))
+    plt.plot(x, score, label="Optimal no.of clusters: "+str(x[s.argmax()]))
     
     #Labelling
     plt.xlabel('no.of clusters')
     plt.ylabel('score')
     plt.title("Silhouette Score")
     plt.legend()
-    plt.savefig("Silhouette_score_"+indicator+".png", dpi=300)
+    plt.savefig("figures/Silhouette_score_"+indicator+".png", dpi=300)
     plt.show()
     
     #Returning the best number of clusters
@@ -168,7 +171,7 @@ def generate_kmeans_cluster_plot(result,normalised_df, indicator_1,
     plt.xlabel(indicator_1)
     plt.ylabel(ylabel)
     plt.legend()
-    plt.savefig("kmeans_cluster_"+ylabel+".png",dpi=300)
+    plt.savefig("figures/kmeans_cluster_"+ylabel+".png",dpi=300)
     plt.show()
 
     #New figure, to generate clusters using the real values
@@ -217,7 +220,7 @@ def generate_kmeans_cluster_plot(result,normalised_df, indicator_1,
     plt.xlabel(indicator_1)
     plt.ylabel(ylabel)    
     plt.legend()
-    plt.savefig("cluster_"+ylabel+".png", dpi=300)
+    plt.savefig("figures/cluster_"+ylabel+".png", dpi=300)
     plt.show()    
     
     return 
@@ -228,29 +231,37 @@ def exp_growth(t, scale, growth):
     Computes exponential function with scale and growth as free parameters
     """
     
-    f = scale * np.exp(growth * (t)) 
+    f = scale * np.exp(growth * (t-1960)) 
     
     return f
 
-def exp_growth2(t, scale, growth):
-    """
-    Computes exponential function with scale and growth as free parameters
+
+def logistics(t, a, k, t0):
+    """ Computes logistics function with scale and incr as free parameters
     """
     
-    f = scale * np.exp(growth * (t-1970)) 
+    f = a / (1.0 + np.exp(-k * (t - t0)))
     
     return f
 
-def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
+
+
+def curve_fit_plot(data, country, indicator, xlabel, ylabel, title, funct,p=None):
     """
     This function fits a exponential function to a given data. In this case,
-    the values of an indicator for a selected country.
+    the values of an indicator for a selected country. It can perform 
+    curve fitting with or without inital parameters. Default is to perform
+    curve fitting wihtout initlal parameters
     
     Returns None.
 
     """
     # Specifying figure size, as plot is big
     #plt.figure(figsize=(15, 8))
+    
+    print("*"*10)
+    print(title)
+    print("*"*10)
 
     temp_df = data[country].T
     # Subsetting the transposed df. Which now has years as columns
@@ -271,12 +282,48 @@ def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
     
     #Converting the year data from string to int
     xdata = subset_df['Year'].astype(int)
+    
+
     #Converting the selected indicator data to float type
     ydata = subset_df[indicator].astype(float)
-    #Fitting the exp_growth function
-    param, pcovar = opt.curve_fit(exp_growth, xdata, ydata, p0=(0,0))    
+    #Fitting the funct function
+    if p:
+        param, pcovar = opt.curve_fit(funct, xdata, ydata, p0=p)  
+    else:
+        param, pcovar = opt.curve_fit(funct, xdata, ydata)  
+
     #Storing the predicted values from the fitted model
-    subset_df['pop_exp'] = exp_growth(xdata, *param)
+    subset_df['prediction'] = funct(xdata, *param)
+    
+    fit_data = subset_df['prediction'].astype(float)
+    
+    
+    #Creating a Dataframe with years to predict the selected indicator
+    predictions = pd.DataFrame([2022,2023,2024,2025,2026], columns=['Year'])
+    pred = funct(predictions['Year'], *param)
+    
+    #Storing the prediction
+    predictions['Prediction'] = pred.astype(float)
+    #Storing the error range / confidence interval
+    pred_errors = err.error_prop(predictions['Year'], funct, param, pcovar)
+    predictions['Error Range'] = pred_errors
+    
+    pred_low = predictions['Prediction'] - pred_errors
+    pred_up = predictions['Prediction'] + pred_errors
+
+    plt.figure()
+    
+    plt.plot(predictions['Year'], predictions['Prediction'])
+    plt.fill_between(predictions['Year'], pred_low, pred_up, 
+                     alpha=0.5, color="green")
+    
+    # Fixing the xlabel. https://stackoverflow.com/a/12608937
+    plt.xticks(np.arange(min(predictions['Year']), 
+                         max(predictions['Year'])+1, 1.0))
+
+    
+    plt.show()
+
     
     #Plotting the orginal data
     plt.figure()
@@ -285,7 +332,7 @@ def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
              label='Data')
     #Plotting the fitted data
     plt.plot(xdata, 
-             subset_df['pop_exp'], 
+             fit_data, 
              label='fit')
     
     #Labelling
@@ -293,31 +340,82 @@ def curve_fit_plot(data, country, indicator, xlabel, ylabel, title):
     plt.ylabel(ylabel)
     plt.legend()
     plt.title(title)
-    plt.savefig("curve_fit_"+ylabel+".png", dpi=300)
+    plt.savefig("figures/curve_fit_"+title+".png", dpi=300)
     plt.show()
     
     # Visualising Error for the fitted data, using the errors py file
-    sigma = err.error_prop(xdata, exp_growth, param, pcovar)
-
-    low = subset_df['pop_exp'] - sigma
-    up = subset_df['pop_exp'] + sigma
+    sigma = err.error_prop(xdata, funct, param, pcovar)
     
+    errors = sigma
+
+    
+    low = fit_data - sigma
+    up = fit_data + sigma
+    print(f"urbanpop 1990: {param[0]} ")
+    print(f"growth rate: {param[1]*100}%")
     #Plotting data with errors ranges
     plt.figure()
-    plt.title("exponenetial function error")
+    plt.title(title+" Errors Visualised")
     plt.plot(xdata, ydata, label="Data")
-    plt.plot(xdata, subset_df['pop_exp'], label="fit")
+    plt.plot(xdata, fit_data, label="fit")
     # plot error ranges with transparency
-    plt.fill_between(xdata, low, up, alpha=0.2, color="green")
+    plt.fill_between(xdata, low, up, alpha=0.5, color="yellow")
+    plt.errorbar(xdata, fit_data, errors,
+                 color="black", linestyle="none")
     #Labelling
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    plt.legend(loc="upper left")
-    plt.savefig("curve_fit_error"+ylabel+".png", dpi=300)
+    plt.legend()
+    plt.savefig("figures/curve_fit_error_"+title+".png", dpi=300)
 
     plt.show()
+        
 
-    return 
+    
+    #Visualising error ranges for the last 10 rows
+    plt.figure()
+    plt.title(title+" Errors Visualised last 10 rows")
+    plt.plot(xdata[-10:-1], ydata[-10:-1], label="Data")
+    plt.plot(xdata[-10:-1], fit_data[-10:-1], label="fit")
+    # plot error ranges with transparency
+    plt.fill_between(xdata[-10:-1], low[-10:-1], up[-10:-1], alpha=0.5,
+                     color="yellow")
+    err_bars = plt.errorbar(xdata[-10:-1], fit_data[-10:-1], errors[-10:-1],
+                 color="black", linestyle="none")
+
+    #Labelling
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.savefig("figures/curve_fit_error_10_rows"+title+".png", dpi=300)
+
+    plt.show()
+    
+    subset_df['Error Range +/-'] = errors
+    
+    
+#    pop_2000 = (2000,funct, *param)
+
+ #   sigma = err.error_prop(2000, funct, param, pcovar)
+    
+  #  print("Population in")
+   # print(f"Population in 2000: {fit_data/1e6: 4.0f} +/- {sigma/1e6: 2.0f} million")
+        
+    #print(errors)
+   # plt.figure()
+   # plt.title(title+" errorbars")
+   # plt.plot(xdata[-10:-1], ydata[-10:-1], label="Data")
+   # plt.plot(xdata[-10:-1], fit_data[-10:-1], label="fit")
+
+   # plt.errorbar(xdata[-10:-1], fit_data[-10:-1], errors[-10:-1], color="red", linestyle="none")
+   # plt.legend()
+   # plt.show()
+
+    return param, low, up, sigma, subset_df, err_bars, predictions
+
+
+def polynomial_func(x,a,b,c):
+    return a*x**2 + b*x + c
 
 
 def main():
@@ -336,7 +434,7 @@ def main():
                 'CO2 emissions (kt)',
                 'Urban population (% of total population)',
                 'Electric power consumption (kWh per capita)',
-                countries)  
+                countries) 
     #dropping Na values along row, as kmeans does not work with na values
     result = result.dropna(axis=0)
     
@@ -393,14 +491,46 @@ def main():
     #---------------------------Curve Fitting--------------------------------
 
     #Fitting a exponential function for India's Urban population %
-    curve_fit_plot(wb_data_country,
+    parama, l1,u1,sigma, subdf, err_bars, predictions = curve_fit_plot(wb_data_country,
                        'India',
                        'Urban population (% of total population)',
-                       'Years','Urban population (%)', 'Trial')
+                       'Years',
+                       'Urban population (%)', 
+                       'India - exponential function ',
+                       exp_growth,
+                       (0,0)
+                       )
     
+    print(subdf.tail())
+    
+    par2 = curve_fit_plot(wb_data_country,
+                       'India',
+                       'Urban population (% of total population)',
+                       'Years',
+                       'Urban population (%)',
+                       'Polynomial Function ',
+                       polynomial_func,
+                       )
         
-    return 
+    par3 = curve_fit_plot(wb_data_country,
+                       'India',
+                       'Urban population (% of total population)',
+                       'Years','Urban population (%)',
+                       'Logistics function (17,0,0)',
+                       logistics,
+                       (17,0,0)
+                       )
+    
+  #  par3 = curve_fit_plot(wb_data_country,
+   #                    'Japan',
+    #                   'Urban population (% of total population)',
+     #                  'Years','Urban population (%)',
+      #                 'Japan logistics function',
+       #                logistics,
+        #               )
+    
+    return result,parama, l1, u1, sigma, subdf, err_bars, predictions
 
 
 if __name__ == '__main__':
-    main()
+    res,p,l1,u1,sigma,subdf,errbars,predicts = main()
