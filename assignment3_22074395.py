@@ -499,10 +499,9 @@ def main():
                        (17,0,0)
                        )
     
-
-    
     return DF1, DF2, DF3, predictions1, predictions2, predictions3
 
 
 if __name__ == '__main__':
+    # variables to access predictions and error ranges
     df1, df2, df3, prediction1, prediction2, prediction3 = main()
